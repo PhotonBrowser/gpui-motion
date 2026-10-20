@@ -56,6 +56,7 @@ pub struct PressScaleElement<E> {
     scale: f32,
     spring: Spring,
     focus_handle: Option<FocusHandle>,
+    gesture_state: Option<GestureState>,
     tab_index: Option<isize>,
     enabled: bool,
     preserve_focus_tab_stop: bool,
@@ -83,6 +84,13 @@ impl<E> PressScaleElement<E> {
     /// Reuses a control's existing focus handle, preserving application focus ownership.
     pub fn focus_handle(mut self, value: FocusHandle) -> Self {
         self.focus_handle = Some(value);
+        self
+    }
+
+    /// Uses caller-owned gesture state for controls that need to inspect their
+    /// interaction or share it with another native gesture binding.
+    pub fn gesture_state(mut self, value: GestureState) -> Self {
+        self.gesture_state = Some(value);
         self
     }
 
@@ -136,6 +144,7 @@ where
         scale: 0.97,
         spring: Spring::new(480.0, 44.0, 1.0).expect("valid default press spring"),
         focus_handle: None,
+        gesture_state: None,
         tab_index: Some(0),
         enabled: true,
         preserve_focus_tab_stop: false,
@@ -309,7 +318,7 @@ impl<E: IntoElement + StatefulInteractiveElement + Styled + 'static> Element
         let mut child = window.with_element_state(
             id.expect("press scale element has an ID"),
             |state: Option<GestureState>, _| {
-                let state = state.unwrap_or_default();
+                let state = state.unwrap_or_else(|| self.gesture_state.clone().unwrap_or_default());
                 let element = self
                     .element
                     .take()
@@ -318,8 +327,7 @@ impl<E: IntoElement + StatefulInteractiveElement + Styled + 'static> Element
                 let gesture = state
                     .bind(self.id.clone(), element, motion, targets)
                     .tab_index(self.tab_index)
-                    .focus_tab_stop(self.focus_tab_stop)
-                    .drag_listener(false);
+                    .focus_tab_stop(self.focus_tab_stop);
                 let gesture = if let Some(focus) = self.focus_handle.clone() {
                     gesture.focus_handle(focus)
                 } else {

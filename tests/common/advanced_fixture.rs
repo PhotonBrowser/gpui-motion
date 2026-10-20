@@ -324,6 +324,7 @@ fn draw(cx: &mut TestAppContext, window: ui::WindowHandle<Fixture>) {
 struct PressScaleFixture {
     clicks: Rc<Cell<usize>>,
     focus: FocusHandle,
+    gesture: GestureState,
     reduced: bool,
     enabled: bool,
 }
@@ -347,6 +348,7 @@ impl Render for PressScaleFixture {
         .scale(0.92)
         .spring(Spring::new(480., 44., 1.).unwrap())
         .focus_handle(self.focus.clone())
+        .gesture_state(self.gesture.clone())
         .preserve_focus_tab_stop()
         .tab_index(None)
         .enabled(self.enabled);
@@ -359,6 +361,7 @@ fn setup_press_scale(cx: &mut TestAppContext) -> ui::WindowHandle<PressScaleFixt
     let window = cx.open_window(size(px(400.), px(300.)), |_, cx| PressScaleFixture {
         clicks: Rc::new(Cell::new(0)),
         focus: cx.focus_handle().tab_stop(true).tab_index(3),
+        gesture: GestureState::default(),
         reduced: false,
         enabled: true,
     });
@@ -377,6 +380,9 @@ pub fn press_scale_wrapper_keeps_native_activation_and_focus(cx: &mut TestAppCon
     let window = setup_press_scale(cx);
     let clicks = window.update(cx, |view, _, _| view.clicks.clone()).unwrap();
     let focus = window.update(cx, |view, _, _| view.focus.clone()).unwrap();
+    let gesture = window
+        .update(cx, |view, _, _| view.gesture.clone())
+        .unwrap();
     let mut visual = VisualTestContext::from_window(window.into(), cx);
 
     visual.simulate_mouse_down(
@@ -390,6 +396,8 @@ pub fn press_scale_wrapper_keeps_native_activation_and_focus(cx: &mut TestAppCon
         w.draw(cx).clear(cx);
     })
     .unwrap();
+    assert!(gesture.interaction().pressed);
+    assert!(gesture.presented().scale_factor().unwrap() < 1.0);
     visual.simulate_mouse_up(
         point(px(10.), px(10.)),
         MouseButton::Left,
