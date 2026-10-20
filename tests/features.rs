@@ -298,6 +298,39 @@ fn variants_partial_gestures_scroll_visibility_and_reordering() {
 }
 
 #[test]
+fn press_scale_retargets_as_a_painted_spring_channel() {
+    let resting = Motion::new(Target::default().scale(1.0))
+        .transition(Transition::Spring(Spring::new(480.0, 44.0, 1.0).unwrap()));
+    let pressed_target = GestureTargets::default().while_press(Target::default().scale(0.92));
+    let mut state = MotionState::default();
+    state.sample(resting, ms(0), false);
+    let mut interaction = Interaction::default();
+    interaction.pressed = true;
+
+    let pressed = resting.with_target(pressed_target.resolve(resting.target(), interaction));
+    state.sample(pressed, ms(0), false);
+    let in_press = state.sample(pressed, ms(80), false);
+    let scale = in_press.target().scale_factor().unwrap();
+    assert!(scale < 1.0 && scale > 0.92, "scale was {scale}");
+
+    let in_release = state.sample(resting, ms(80), false);
+    assert_eq!(in_release.target().scale_factor(), Some(scale));
+    let returning = state
+        .sample(resting, ms(130), false)
+        .target()
+        .scale_factor()
+        .unwrap();
+    assert!(
+        returning > scale && returning < 1.0,
+        "scale was {returning}"
+    );
+
+    let settled = state.sample(resting, ms(3000), false);
+    assert_eq!(settled.target().scale_factor(), Some(1.0));
+    assert!(!settled.is_animating());
+}
+
+#[test]
 fn linear_light_color_and_color_interruption() {
     let black = Color::rgb(0);
     let white = Color::rgb(0xffffff);

@@ -662,6 +662,29 @@ fn button(state: &GestureState) -> GestureElement {
 }
 ```
 
+For a button that only needs spring scale feedback, opt in with `press_scale`.
+The wrapper retains its gesture state under the supplied stable ID, so callers
+keep the ordinary styled-control builder API and do not need a view field:
+
+```rust
+use gpui::{Role, div, prelude::*};
+use gpui_ce_motion::{Spring, press_scale};
+
+let button = press_scale(
+    "save-button",
+    div().id("save-button-control").role(Role::Button).child("Save"),
+)
+.scale(0.97)
+.spring(Spring::new(480.0, 44.0, 1.0).unwrap())
+.on_click(|_, _, _| {});
+```
+
+Scale is a painted, center-origin transform: it does not change layout or hit
+testing. Native pointer release outside the control, keyboard activation,
+cancellation, existing focus handles, and GPUI reduced-motion behavior continue
+through the gesture adapter. Use `focus_handle(...)`, `tab_index(...)`, and
+`enabled(...)` when the application owns those policies explicitly.
+
 You can also set `while_drag` and `while_in_view` targets. If several interactions
 set the same property, drag wins over press, hover, focus, and in-view, in that order.
 

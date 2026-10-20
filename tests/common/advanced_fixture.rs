@@ -1,14 +1,14 @@
 //! Shared native geometry/input contracts for the CE and Kit adapters.
 use ui::{
-    AppContext, Context, FocusHandle, Modifiers, MouseButton, Render, Role, ScrollHandle,
-    TestAppContext, VisualTestContext, Window, div, point, prelude::*, px, size,
+    AppContext, Context, FocusHandle, InputEvent, Modifiers, MouseButton, Render, Role,
+    ScrollHandle, TestAppContext, VisualTestContext, Window, div, point, prelude::*, px, size,
 };
 
 use crate::{activation, motion, ui};
 
 use gpui_ce_motion::{
-    Color, Drag, Easing, GestureTargets, Motion, PathCommand, PathShape, StrokeReveal, Target,
-    Transition,
+    Color, Drag, Easing, GestureTargets, Motion, PathCommand, PathShape, Spring, StrokeReveal,
+    Target, Transition,
 };
 
 use motion::{
@@ -319,6 +319,183 @@ fn draw(cx: &mut TestAppContext, window: ui::WindowHandle<Fixture>) {
         w.draw(cx).clear(cx);
     })
     .unwrap();
+}
+
+struct PressScaleFixture {
+    clicks: Rc<Cell<usize>>,
+    focus: FocusHandle,
+    reduced: bool,
+    enabled: bool,
+}
+
+impl Render for PressScaleFixture {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        cx.set_reduce_motion(self.reduced);
+        let clicks = self.clicks.clone();
+        let control = motion::press_scale(
+            "press-scale",
+            div()
+                .id("press-scale-button")
+                .role(Role::Button)
+                .aria_label("Press scale control")
+                .tab_index(3)
+                .track_focus(&self.focus)
+                .w(px(100.))
+                .h(px(40.))
+                .on_click(move |_, _, _| clicks.set(clicks.get() + 1)),
+        )
+        .scale(0.92)
+        .spring(Spring::new(480., 44., 1.).unwrap())
+        .focus_handle(self.focus.clone())
+        .preserve_focus_tab_stop()
+        .tab_index(None)
+        .enabled(self.enabled);
+
+        div().size_full().items_start().child(control)
+    }
+}
+
+fn setup_press_scale(cx: &mut TestAppContext) -> ui::WindowHandle<PressScaleFixture> {
+    let window = cx.open_window(size(px(400.), px(300.)), |_, cx| PressScaleFixture {
+        clicks: Rc::new(Cell::new(0)),
+        focus: cx.focus_handle().tab_stop(true).tab_index(3),
+        reduced: false,
+        enabled: true,
+    });
+    cx.update_window(window.into(), |_, w, _| activation::activate(w))
+        .unwrap();
+    cx.run_until_parked();
+    cx.update_window(window.into(), |_, w, cx| {
+        w.simulate_next_frame(cx);
+        w.draw(cx).clear(cx);
+    })
+    .unwrap();
+    window
+}
+
+pub fn press_scale_wrapper_keeps_native_activation_and_focus(cx: &mut TestAppContext) {
+    let window = setup_press_scale(cx);
+    let clicks = window.update(cx, |view, _, _| view.clicks.clone()).unwrap();
+    let focus = window.update(cx, |view, _, _| view.focus.clone()).unwrap();
+    let mut visual = VisualTestContext::from_window(window.into(), cx);
+
+    visual.simulate_mouse_down(
+        point(px(10.), px(10.)),
+        MouseButton::Left,
+        Modifiers::default(),
+    );
+    cx.executor().advance_clock(Duration::from_millis(60));
+    cx.update_window(window.into(), |_, w, cx| {
+        w.simulate_next_frame(cx);
+        w.draw(cx).clear(cx);
+    })
+    .unwrap();
+    visual.simulate_mouse_up(
+        point(px(10.), px(10.)),
+        MouseButton::Left,
+        Modifiers::default(),
+    );
+    assert_eq!(clicks.get(), 1);
+
+    visual.simulate_mouse_down(
+        point(px(10.), px(10.)),
+        MouseButton::Left,
+        Modifiers::default(),
+    );
+    visual.simulate_mouse_move(
+        point(px(250.), px(250.)),
+        MouseButton::Left,
+        Modifiers::default(),
+    );
+    visual.simulate_mouse_up(
+        point(px(250.), px(250.)),
+        MouseButton::Left,
+        Modifiers::default(),
+    );
+    assert_eq!(clicks.get(), 1);
+
+    cx.update_window(window.into(), |_, w, cx| focus.focus(w, cx))
+        .unwrap();
+    assert!(
+        cx.update_window(window.into(), |_, w, _| focus.is_focused(w))
+            .unwrap()
+    );
+    cx.run_until_parked();
+    cx.update_window(window.into(), |_, w, cx| w.draw(cx).clear(cx))
+        .unwrap();
+    let keystroke = ui::Keystroke::parse("enter").unwrap();
+    cx.update_window(window.into(), |_, w, cx| {
+        w.dispatch_event(
+            ui::KeyDownEvent {
+                keystroke: keystroke.clone(),
+                is_held: false,
+                prefer_character_input: false,
+            }
+            .to_platform_input(),
+            cx,
+        );
+        w.dispatch_event(ui::KeyUpEvent { keystroke }.to_platform_input(), cx);
+    })
+    .unwrap();
+    assert_eq!(clicks.get(), 2);
+
+    window
+        .update(cx, |view, _, cx| {
+            view.enabled = false;
+            cx.notify();
+        })
+        .unwrap();
+    cx.update_window(window.into(), |_, w, _| w.set_a11y_forced(true))
+        .unwrap();
+    cx.update_window(window.into(), |_, w, cx| {
+        w.simulate_next_frame(cx);
+        w.draw(cx).clear(cx);
+    })
+    .unwrap();
+    let is_disabled = cx
+        .update_window(window.into(), |_, w, _| {
+            w.a11y_tree()
+                .unwrap()
+                .nodes
+                .iter()
+                .find(|(_, node)| node.label() == Some("Press scale control"))
+                .map(|(_, node)| node)
+                .unwrap()
+                .is_disabled()
+        })
+        .unwrap();
+    assert!(is_disabled);
+    visual.simulate_click(point(px(10.), px(10.)), Modifiers::default());
+    assert_eq!(clicks.get(), 2);
+
+    window
+        .update(cx, |view, _, cx| {
+            view.enabled = true;
+            view.reduced = true;
+            cx.notify();
+        })
+        .unwrap();
+    cx.update_window(window.into(), |_, w, cx| {
+        w.simulate_next_frame(cx);
+        w.draw(cx).clear(cx);
+    })
+    .unwrap();
+    visual.simulate_mouse_down(
+        point(px(10.), px(10.)),
+        MouseButton::Left,
+        Modifiers::default(),
+    );
+    cx.update_window(window.into(), |_, w, cx| {
+        w.simulate_next_frame(cx);
+        w.draw(cx).clear(cx);
+    })
+    .unwrap();
+    assert_eq!(
+        cx.update_window(window.into(), |_, w, cx| w.simulate_next_frame(cx))
+            .unwrap(),
+        0,
+        "reduced motion must not leave a spring frame pending"
+    );
 }
 
 fn bounds(

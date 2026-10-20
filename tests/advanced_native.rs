@@ -27,6 +27,11 @@ fn native_gestures_bind_hover_press_drag_outside_release_and_keyboard(cx: &mut u
 }
 
 #[gpui::test]
+fn press_scale_wrapper_keeps_native_activation_and_focus(cx: &mut ui::TestAppContext) {
+    fixture::press_scale_wrapper_keeps_native_activation_and_focus(cx);
+}
+
+#[gpui::test]
 fn drag_cancels_on_escape_blur_and_window_deactivation(cx: &mut ui::TestAppContext) {
     fixture::drag_cancels_on_escape_blur_and_window_deactivation(cx);
 }

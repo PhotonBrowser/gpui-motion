@@ -65,7 +65,7 @@ mod native;
 mod motion_element_native;
 
 #[cfg(feature = "gpui")]
-pub use motion_element_native::{MotionApply, MotionElement};
+pub use motion_element_native::{MotionApply, MotionElement, PressScaleElement, press_scale};
 
 pub use motion::{Frame, Motion, MotionState, Presence, Property, Target};
 

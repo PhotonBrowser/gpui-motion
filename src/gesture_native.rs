@@ -276,6 +276,10 @@ impl GestureState {
             targets,
             enabled: true,
             drag_listener: true,
+            focus_handle: None,
+            tab_index: Some(0),
+            preserve_focus_tab_stop: false,
+            focus_tab_stop: None,
         }
     }
 }
@@ -289,9 +293,42 @@ pub struct GestureElement<E = Stateful<Div>> {
     targets: GestureTargets,
     enabled: bool,
     drag_listener: bool,
+    focus_handle: Option<FocusHandle>,
+    tab_index: Option<isize>,
+    preserve_focus_tab_stop: bool,
+    focus_tab_stop: Option<bool>,
 }
 
 impl<E> GestureElement<E> {
+    /// Uses an existing focus handle instead of creating a separate tab stop.
+    /// The child is tracked under this handle so its focus styles remain active.
+    pub fn focus_handle(mut self, focus: FocusHandle) -> Self {
+        self.focus_handle = Some(focus);
+
+        self
+    }
+
+    /// Sets the wrapper's tab index. Pass `None` to leave the child's value intact.
+    pub fn tab_index(mut self, index: Option<isize>) -> Self {
+        self.tab_index = index;
+
+        self
+    }
+
+    /// Keeps the tab-stop setting already assigned to an existing focus handle.
+    pub fn preserve_focus_tab_stop(mut self) -> Self {
+        self.preserve_focus_tab_stop = true;
+
+        self
+    }
+
+    /// Sets the focus handle's tab-stop policy when it differs from `enabled`.
+    pub fn focus_tab_stop(mut self, tab_stop: Option<bool>) -> Self {
+        self.focus_tab_stop = tab_stop;
+
+        self
+    }
+
     /// Disables automatic target dragging so a separate handle can call `start_drag`.
     pub fn drag_listener(mut self, enabled: bool) -> Self {
         self.drag_listener = enabled;
@@ -347,9 +384,19 @@ impl<E: IntoElement + StatefulInteractiveElement + Styled + 'static> Element for
             .get_or_insert_with(|| cx.background_executor().now());
         let focus = data
             .focus
-            .get_or_insert_with(|| cx.focus_handle().tab_stop(true))
-            .clone()
-            .tab_stop(self.enabled);
+            .get_or_insert_with(|| {
+                self.focus_handle
+                    .clone()
+                    .unwrap_or_else(|| cx.focus_handle().tab_stop(true))
+            })
+            .clone();
+        let focus = if let Some(tab_stop) = self.focus_tab_stop {
+            focus.tab_stop(tab_stop)
+        } else if self.preserve_focus_tab_stop && self.focus_handle.is_some() {
+            focus
+        } else {
+            focus.tab_stop(self.enabled)
+        };
 
         let focused = self.enabled && focus.is_focused(w);
 
@@ -394,14 +441,14 @@ impl<E: IntoElement + StatefulInteractiveElement + Styled + 'static> Element for
             w.request_animation_frame();
         }
 
+        let child = self.child.take().expect("one layout").track_focus(&focus);
+        let child = if let Some(tab_index) = self.tab_index {
+            child.tab_index(tab_index)
+        } else {
+            child
+        };
         let child = frame
-            .apply(
-                self.child
-                    .take()
-                    .expect("one layout")
-                    .track_focus(&focus)
-                    .tab_index(0),
-            )
+            .apply(child)
             .left(px(target.x_px()))
             .top(px(target.y_px()));
 
