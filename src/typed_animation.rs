@@ -41,12 +41,12 @@ impl MotionData<1> for f64 {
     }
 }
 
-impl MotionData<6> for Target {
-    fn channels(self) -> [f64; 6] {
+impl MotionData<7> for Target {
+    fn channels(self) -> [f64; 7] {
         self.values()
     }
 
-    fn with_channels(self, values: [f64; 6]) -> Self {
+    fn with_channels(self, values: [f64; 7]) -> Self {
         Self::from_values(values, self.mask())
     }
 
@@ -91,7 +91,7 @@ impl<T> TypedKeyframe<T> {
 }
 
 fn scalar(value: f64) -> Target {
-    Target::from_values([value, 0.0, 1.0, 0.0, 0.0, 0.0], 1)
+    Target::from_values([value, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0], 1)
 }
 
 /// Immutable typed clip. Channels use the same solver as ordinary `Animation`;

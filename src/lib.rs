@@ -61,6 +61,12 @@ mod value;
 #[cfg(feature = "gpui")]
 mod native;
 
+#[cfg(feature = "gpui")]
+mod motion_element_native;
+
+#[cfg(feature = "gpui")]
+pub use motion_element_native::{MotionApply, MotionElement};
+
 pub use motion::{Frame, Motion, MotionState, Presence, Property, Target};
 
 pub use motions::Motions;
@@ -153,7 +159,7 @@ pub use text::{
     TextUnitInfo, text_ranges,
 };
 
-#[cfg(feature = "gpui")]
+#[cfg(all(feature = "gpui", feature = "text"))]
 mod text_native {
     use gpui::ColorExt as _;
 
@@ -175,7 +181,7 @@ mod text_native {
     crate::__motion_text_adapter!(gpui, text_color_to_native, text_color_from_native);
 }
 
-#[cfg(feature = "gpui")]
+#[cfg(all(feature = "gpui", feature = "text"))]
 pub use text_native::{NumberElement, NumberMotionState, TextElement, TextMotionState};
 
 mod graph;

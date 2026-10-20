@@ -379,6 +379,7 @@ impl Drag {
                 0.0,
                 0.0,
                 0.0,
+                0.0,
             ],
             values.iter().any(|v| v.is_animating()),
             values.iter().any(|v| v.just_completed()) && values.iter().all(|v| !v.is_animating()),

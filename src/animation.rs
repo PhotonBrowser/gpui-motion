@@ -283,13 +283,13 @@ impl Animation {
             let velocity = if iteration == 0 {
                 origin_velocities(origin)
             } else {
-                [0.0; 6]
+                [0.0; 7]
             };
 
-            let mut values = [0.0; 6];
-            let mut velocities = [0.0; 6];
+            let mut values = [0.0; 7];
+            let mut velocities = [0.0; 7];
 
-            for ix in 0..6 {
+            for ix in 0..7 {
                 let (v, speed, _) = sample_transition(
                     start.values()[ix],
                     velocity[ix],
@@ -316,7 +316,7 @@ impl Animation {
 
             return (
                 Frame::animated(
-                    Target::from_values(values, start.mask() | end.mask() | 7),
+                    Target::from_values(values, start.mask() | end.mask()),
                     velocities,
                     !done,
                     false,
@@ -379,7 +379,7 @@ impl Animation {
 
         (
             Frame::animated(
-                Target::from_values(values, a.mask() | b.mask() | 7),
+                Target::from_values(values, a.mask() | b.mask()),
                 velocity,
                 !done,
                 false,
@@ -390,7 +390,7 @@ impl Animation {
     }
 }
 
-fn origin_velocities(frame: Frame) -> [f64; 6] {
+fn origin_velocities(frame: Frame) -> [f64; 7] {
     let basic = frame.velocity();
     let layout = frame.layout_velocity();
 
@@ -401,6 +401,7 @@ fn origin_velocities(frame: Frame) -> [f64; 6] {
         layout[0].unwrap_or(0.0),
         layout[1].unwrap_or(0.0),
         layout[2].unwrap_or(0.0),
+        frame.scale_velocity().unwrap_or(0.0),
     ]
 }
 

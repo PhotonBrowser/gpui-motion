@@ -4,9 +4,9 @@ use std::time::Instant;
 
 use crate::{MotionValue, Transition};
 
-const CHANNELS: usize = 6;
+const CHANNELS: usize = 7;
 
-/// Opacity, offsets, and optional width, height, and border radius in logical pixels.
+/// Opacity, offsets, scale, and optional width, height, and border radius in logical pixels.
 ///
 /// Builders panic for non-finite inputs, negative layout values, or opacity
 /// outside `0..=1`. Validate
@@ -22,7 +22,7 @@ impl Default for Target {
     fn default() -> Self {
         Self {
             layout: 0,
-            values: [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            values: [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
         }
     }
 }
@@ -73,6 +73,17 @@ impl Target {
         self.with_layout(5, value)
     }
 
+    /// Sets uniform painted scale around the element center. Layout and hit testing stay unchanged.
+    pub fn scale(mut self, value: f32) -> Self {
+        assert!(
+            value.is_finite() && value >= 0.0,
+            "scale must be finite and non-negative"
+        );
+        self.values[6] = value.into();
+        self.layout |= 1 << 6;
+        self
+    }
+
     /// Width, if declared, clamped to non-negative finite drawable values.
     pub fn width_px(self) -> Option<f32> {
         self.layout_value(3)
@@ -86,6 +97,11 @@ impl Target {
     /// Corner radius, if declared, clamped to non-negative finite drawable values.
     pub fn border_radius_px(self) -> Option<f32> {
         self.layout_value(5)
+    }
+
+    /// Uniform painted scale, when declared.
+    pub fn scale_factor(self) -> Option<f32> {
+        (self.layout & (1 << 6) != 0).then(|| self.values[6].clamp(0.0, f64::from(f32::MAX)) as f32)
     }
 
     fn with_layout(mut self, ix: usize, value: f32) -> Self {
@@ -271,6 +287,8 @@ pub enum Property {
     Height,
     /// Corner radius in logical pixels.
     BorderRadius,
+    /// Uniform painted scale around the element center.
+    Scale,
 }
 
 /// Lifecycle of a retained element. Exit completes only after all channels settle.
@@ -291,6 +309,7 @@ pub enum Presence {
 #[derive(Clone, Copy, Debug)]
 pub struct Frame {
     target: Target,
+    applied: u8,
     velocity: [f64; CHANNELS],
     presence: Presence,
     animating: bool,
@@ -301,6 +320,7 @@ impl Frame {
     /// Creates a static presentation, useful for scroll, drag, and custom value bindings.
     pub fn at(target: Target) -> Self {
         Self {
+            applied: target.mask(),
             target,
             velocity: [0.0; CHANNELS],
             presence: Presence::Present,
@@ -316,6 +336,7 @@ impl Frame {
         completed: bool,
     ) -> Self {
         Self {
+            applied: target.mask(),
             target,
             velocity,
             presence: Presence::Present,
@@ -334,6 +355,21 @@ impl Frame {
         self.target
     }
 
+    /// Whether the sampled frame declared a property for native style application.
+    pub fn contains(self, property: Property) -> bool {
+        let index = match property {
+            Property::X => 0,
+            Property::Y => 1,
+            Property::Opacity => 2,
+            Property::Width => 3,
+            Property::Height => 4,
+            Property::BorderRadius => 5,
+            Property::Scale => 6,
+        };
+
+        self.applied & (1 << index) != 0
+    }
+
     /// Current x, y, and opacity velocities per second, before drawing clamps.
     pub fn velocity(self) -> [f64; 3] {
         [self.velocity[0], self.velocity[1], self.velocity[2]]
@@ -345,6 +381,11 @@ impl Frame {
         std::array::from_fn(|ix| {
             (self.target.layout & (1 << (ix + 3)) != 0).then_some(self.velocity[ix + 3])
         })
+    }
+
+    /// Current scale velocity per second, if scale is declared.
+    pub fn scale_velocity(self) -> Option<f64> {
+        (self.target.layout & (1 << 6) != 0).then_some(self.velocity[6])
     }
 
     /// Current lifecycle phase.
@@ -387,7 +428,9 @@ impl Default for MotionState {
     fn default() -> Self {
         Self {
             layout: 0,
-            channels: std::array::from_fn(|ix| MotionValue::new(if ix == 2 { 1.0 } else { 0.0 })),
+            channels: std::array::from_fn(|ix| {
+                MotionValue::new(if ix == 2 || ix == 6 { 1.0 } else { 0.0 })
+            }),
             presence: Presence::Absent,
             initialized: false,
             #[cfg(feature = "gpui")]
@@ -445,7 +488,7 @@ impl MotionState {
 
         let added = requested.layout & !self.layout;
 
-        for ix in 3..CHANNELS {
+        for ix in 3..6 {
             if added & (1 << ix) != 0 {
                 self.channels[ix].jump(requested.values[ix], now);
             }
@@ -495,6 +538,7 @@ impl MotionState {
                 values: position,
                 layout: self.layout | 7,
             },
+            applied: self.layout,
             velocity,
             presence: self.presence,
             animating: active,

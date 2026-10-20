@@ -31,16 +31,28 @@ impl MotionState {
 }
 
 impl Frame {
-    /// Applies opacity, relative left/top insets, and declared width, height,
+    /// Applies declared opacity, relative left/top insets, scale, width, height,
     /// and radius to a styled element. Sizes cause real layout reflow; these
     /// are not GPU transforms or layout projection. Undeclared layout properties
     /// preserve the element's style. Radius does not enable overflow clipping.
-    /// This replaces the div's position mode and left/top values. Use a wrapper
-    /// if the div itself needs absolute positioning. Normal layout space remains
+    /// Declared offsets replace the div's position mode and matching insets. Use
+    /// a wrapper if the div itself needs absolute positioning. Normal layout space remains
     /// reserved until exit completes; siblings do not move with these offsets.
     pub fn apply<E: Styled>(self, element: E) -> E {
         let target = self.target();
         let mut element = element;
+
+        if self.contains(crate::Property::X) || self.contains(crate::Property::Y) {
+            element = element.relative();
+        }
+
+        if self.contains(crate::Property::X) {
+            element = element.left(px(target.x_px()));
+        }
+
+        if self.contains(crate::Property::Y) {
+            element = element.top(px(target.y_px()));
+        }
 
         if let Some(width) = target.width_px() {
             element = element.w(px(width));
@@ -54,11 +66,15 @@ impl Frame {
             element = element.rounded(px(radius));
         }
 
+        if let Some(scale) = target.scale_factor() {
+            element = element.scale(scale);
+        }
+
+        if self.contains(crate::Property::Opacity) {
+            element = element.opacity(target.alpha());
+        }
+
         element
-            .relative()
-            .left(px(self.target().x_px()))
-            .top(px(self.target().y_px()))
-            .opacity(self.target().alpha())
     }
 
     /// Builds an element only while mounted, retaining it throughout exit.

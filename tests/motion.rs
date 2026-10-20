@@ -67,6 +67,22 @@ fn interrupted_tween_uses_presentation_instead_of_previous_target() {
 }
 
 #[test]
+fn scale_targets_are_retained_and_interpolated() {
+    let mut state = MotionState::default();
+    let motion = Motion::new(Target::default().scale(1.0))
+        .initial(Target::default().scale(0.8))
+        .transition(Transition::Tween(at(100), Easing::Linear));
+
+    let first = state.sample(motion, at(0), false);
+    let middle = state.sample(motion, at(50), false);
+    let last = state.sample(motion, at(100), false);
+
+    assert_eq!(first.target().scale_factor(), Some(0.8));
+    assert_eq!(middle.target().scale_factor(), Some(0.9));
+    assert_eq!(last.target().scale_factor(), Some(1.0));
+}
+
+#[test]
 fn exit_stays_mounted_until_settled_and_reentry_reuses_presentation() {
     let mut state = MotionState::default();
     let motion = spec(Transition::default()).exit(Target::default().y(20.0).opacity(0.0));

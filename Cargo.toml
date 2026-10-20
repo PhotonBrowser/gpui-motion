@@ -7,7 +7,7 @@ publish = ["crates-io"]
 description = "Declarative, interruptible animations, transitions, and text motion for GPUI CE"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/1bye/gpui-motion"
+repository = "https://github.com/PhotonBrowser/gpui-motion"
 documentation = "https://docs.rs/gpui-ce-motion"
 keywords = ["gpui", "animation", "spring", "native", "ui"]
 categories = ["gui", "graphics"]
@@ -25,10 +25,11 @@ undocumented_unsafe_blocks = "warn"
 [features]
 default = []
 text = ["dep:unicode-segmentation"]
-gpui = ["dep:gpui", "text", "svg-path"]
+gpui = ["dep:gpui", "svg-path"]
+native-text = ["gpui", "text"]
 svg-path = ["dep:svgtypes"]
 # Window-system backends are only needed to run the demos.
-demo = ["gpui", "dep:gpui_platform"]
+demo = ["native-text", "dep:gpui_platform"]
 # Opt-in headless tests of real CE layout/prepaint/input, excluded from normal builds.
 native-tests = ["gpui", "gpui/test-support"]
 

@@ -7,6 +7,10 @@
 Describe the next state. Keep the motion state in your view. The library handles
 transitions, springs, and interruptions using stock GPUI CE—no React or renderer fork.
 
+Photon maintains this fork at [PhotonBrowser/gpui-motion](https://github.com/PhotonBrowser/gpui-motion),
+with [1bye/gpui-motion](https://github.com/1bye/gpui-motion) as its upstream.
+The upstream MIT and Apache-2.0 notices remain in this repository.
+
 [Crates.io](https://crates.io/crates/gpui-ce-motion) ·
 [API examples](#api) · [API reference](https://docs.rs/gpui-ce-motion/latest/gpui_ce_motion/) ·
 [Demos](docs/DEVELOPMENT.md#demos) · [GPUI Kit setup](#gpui-kit) ·
@@ -28,7 +32,8 @@ same CE source and version throughout your app so its element types match.
 | -------------- | ----------------------------------------------------------------------- |
 | Default (none) | Portable animation math, explicit clocks, no third-party dependencies   |
 | `text`         | Portable Unicode text lifecycle and prepared text sampling               |
-| `gpui`         | Native adapters, text, SVG parsing, input, and automatic frame scheduling |
+| `gpui`         | Native adapters, SVG parsing, input, and automatic frame scheduling      |
+| `native-text` | Native text adapters in addition to the portable `text` feature         |
 | `svg-path`     | Portable SVG path-data parser, including arcs                           |
 | `demo`         | Running this repository's examples; adds the platform backends          |
 | `native-tests` | Development checks using CE's TestPlatform                              |
@@ -83,7 +88,7 @@ Native adapters request frames while active. Notify the view after input changes
 See [a complete runnable app](examples/motion.rs) or try the showcase:
 
 ```sh
-git clone https://github.com/1bye/gpui-motion.git
+git clone https://github.com/PhotonBrowser/gpui-motion.git
 cd gpui-motion
 cargo run --release --features demo --example motion_showcase
 ```
