@@ -31,20 +31,16 @@ impl MotionState {
 }
 
 impl Frame {
-    /// Applies declared opacity, relative left/top insets, scale, width, height,
+    /// Applies declared opacity, left/top insets, scale, width, height,
     /// and radius to a styled element. Sizes cause real layout reflow; these
     /// are not GPU transforms or layout projection. Undeclared layout properties
     /// preserve the element's style. Radius does not enable overflow clipping.
-    /// Declared offsets replace the div's position mode and matching insets. Use
-    /// a wrapper if the div itself needs absolute positioning. Normal layout space remains
-    /// reserved until exit completes; siblings do not move with these offsets.
+    /// Offsets preserve the element's existing position mode, including absolute
+    /// positioning. Normal layout space remains reserved until exit completes;
+    /// siblings do not move with these offsets.
     pub fn apply<E: Styled>(self, element: E) -> E {
         let target = self.target();
         let mut element = element;
-
-        if self.contains(crate::Property::X) || self.contains(crate::Property::Y) {
-            element = element.relative();
-        }
 
         if self.contains(crate::Property::X) {
             element = element.left(px(target.x_px()));

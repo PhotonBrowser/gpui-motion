@@ -54,6 +54,7 @@ struct Data<K> {
     mode: ReorderAxis,
     epoch: Option<Instant>,
     change: Option<Change<K>>,
+    keyboard_change: Option<Change<K>>,
     rects: Vec<LayoutRect>,
     indices: Vec<usize>,
     scroll: Option<EdgeScroll>,
@@ -297,6 +298,7 @@ impl<K: Clone + Eq + Hash + 'static> ReorderGroup<K> {
             mode,
             epoch: None,
             change: None,
+            keyboard_change: None,
             rects: Vec::with_capacity(capacity),
             indices: Vec::with_capacity(capacity),
             scroll: None,
@@ -335,6 +337,17 @@ impl<K: Clone + Eq + Hash + 'static> ReorderGroup<K> {
     /// Capture application entities weakly to avoid a retained self-reference cycle.
     pub fn on_change(self, callback: impl Fn(&[K], &mut Window, &mut App) + 'static) -> Self {
         self.0.borrow_mut().change = Some(Rc::new(callback));
+
+        self
+    }
+
+    /// Invokes after an Alt+Arrow keyboard reorder. If omitted, keyboard
+    /// changes use the `on_change` callback for compatibility.
+    pub fn on_keyboard_change(
+        self,
+        callback: impl Fn(&[K], &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.0.borrow_mut().keyboard_change = Some(Rc::new(callback));
 
         self
     }
@@ -415,6 +428,38 @@ impl<K: Clone + Eq + Hash + 'static> ReorderGroup<K> {
         key: K,
         child: E,
     ) -> ReorderElement<K, E> {
+        self.item_inner(
+            id,
+            key,
+            child,
+            None,
+            Some(Box::new(|child, focus| {
+                child.track_focus(focus).tab_index(0).into_any_element()
+            })),
+        )
+    }
+
+    /// Wraps an element that already owns its focus and keyboard order. The
+    /// supplied handle lets the group offer its Alt+Arrow reorder keys without
+    /// adding a second tab stop or replacing the child's accessibility state.
+    pub fn item_with_focus<E: IntoElement + 'static>(
+        &self,
+        id: impl Into<ElementId>,
+        key: K,
+        focus: FocusHandle,
+        child: E,
+    ) -> ReorderElement<K, E> {
+        self.item_inner(id, key, child, Some(focus), None)
+    }
+
+    fn item_inner<E: IntoElement + 'static>(
+        &self,
+        id: impl Into<ElementId>,
+        key: K,
+        child: E,
+        focus: Option<FocusHandle>,
+        wrap_focus: Option<Box<dyn FnOnce(E, &FocusHandle) -> AnyElement>>,
+    ) -> ReorderElement<K, E> {
         let slot = self
             .0
             .borrow()
@@ -429,6 +474,8 @@ impl<K: Clone + Eq + Hash + 'static> ReorderGroup<K> {
             key,
             slot,
             child: Some(child),
+            focus,
+            wrap_focus,
             transition: Transition::default(),
             listener: true,
         }
@@ -478,6 +525,8 @@ pub struct ReorderElement<K, E = Stateful<Div>> {
     key: K,
     slot: usize,
     child: Option<E>,
+    focus: Option<FocusHandle>,
+    wrap_focus: Option<Box<dyn FnOnce(E, &FocusHandle) -> AnyElement>>,
     transition: Transition,
     listener: bool,
 }
@@ -498,8 +547,8 @@ impl<K, E> ReorderElement<K, E> {
     }
 }
 
-impl<K: Clone + Eq + Hash + 'static, E: IntoElement + StatefulInteractiveElement + 'static>
-    IntoElement for ReorderElement<K, E>
+impl<K: Clone + Eq + Hash + 'static, E: IntoElement + 'static> IntoElement
+    for ReorderElement<K, E>
 {
     type Element = Self;
 
@@ -508,9 +557,7 @@ impl<K: Clone + Eq + Hash + 'static, E: IntoElement + StatefulInteractiveElement
     }
 }
 
-impl<K: Clone + Eq + Hash + 'static, E: IntoElement + StatefulInteractiveElement + 'static> Element
-    for ReorderElement<K, E>
-{
+impl<K: Clone + Eq + Hash + 'static, E: IntoElement + 'static> Element for ReorderElement<K, E> {
     type RequestLayoutState = AnyElement;
     type PrepaintState = Hitbox;
 
@@ -563,16 +610,15 @@ impl<K: Clone + Eq + Hash + 'static, E: IntoElement + StatefulInteractiveElement
                 slot: 0,
             });
 
-        let focus = metric.focus.clone();
+        let focus = self.focus.clone().unwrap_or_else(|| metric.focus.clone());
+        metric.focus = focus.clone();
 
         drop(data);
-        let mut child = self
-            .child
-            .take()
-            .expect("one layout")
-            .track_focus(&focus)
-            .tab_index(0)
-            .into_any_element();
+        let child = self.child.take().expect("one layout");
+        let mut child = match self.wrap_focus.take() {
+            Some(wrap_focus) => wrap_focus(child, &focus),
+            None => child.into_any_element(),
+        };
 
         let layout = child.request_layout(window, cx);
 
@@ -780,8 +826,9 @@ impl<K: Clone + Eq + Hash + 'static, E: IntoElement + StatefulInteractiveElement
 
             move_item(&mut data.order, from, to).expect("measured order");
             let callback = data
-                .change
+                .keyboard_change
                 .clone()
+                .or_else(|| data.change.clone())
                 .map(|callback| (callback, data.order.clone()));
 
             let owner = data.owner;

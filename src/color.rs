@@ -93,10 +93,21 @@ impl ColorState {
         now: Duration,
         reduced_motion: bool,
     ) -> (Color, bool) {
+        self.sample_delayed(color, transition, Duration::ZERO, now, reduced_motion)
+    }
+
+    pub(crate) fn sample_delayed(
+        &mut self,
+        color: Color,
+        transition: Transition,
+        delay: Duration,
+        now: Duration,
+        reduced_motion: bool,
+    ) -> (Color, bool) {
         let mut active = false;
 
         let linear = std::array::from_fn(|ix| {
-            self.channels[ix].animate(color.linear[ix], transition, now);
+            self.channels[ix].animate_delayed(color.linear[ix], transition, delay, now);
             let frame = self.channels[ix].sample(now, reduced_motion);
 
             active |= frame.is_animating();

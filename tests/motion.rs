@@ -83,6 +83,42 @@ fn scale_targets_are_retained_and_interpolated() {
 }
 
 #[test]
+fn style_motion_delay_holds_its_initial_value() {
+    use gpui_ce_motion::{StyleMotion, StyleMotionState, StyleProperty, StyleTarget};
+
+    let mut state = StyleMotionState::default();
+    let motion = StyleMotion::new(StyleTarget::default().value(StyleProperty::Blur, 0.0))
+        .initial(StyleTarget::default().value(StyleProperty::Blur, 8.0))
+        .transition(Transition::Tween(
+            Duration::from_millis(100),
+            Easing::Linear,
+        ))
+        .delay(Duration::from_millis(50));
+
+    assert_eq!(
+        state
+            .sample(motion, at(0), false)
+            .target()
+            .get(StyleProperty::Blur),
+        Some(8.0)
+    );
+    assert_eq!(
+        state
+            .sample(motion, at(49), false)
+            .target()
+            .get(StyleProperty::Blur),
+        Some(8.0)
+    );
+    assert_eq!(
+        state
+            .sample(motion, at(100), false)
+            .target()
+            .get(StyleProperty::Blur),
+        Some(4.0)
+    );
+}
+
+#[test]
 fn exit_stays_mounted_until_settled_and_reentry_reuses_presentation() {
     let mut state = MotionState::default();
     let motion = spec(Transition::default()).exit(Target::default().y(20.0).opacity(0.0));
@@ -510,4 +546,16 @@ fn native_adapter_preserves_omitted_styles_and_applies_declared_layout_values() 
         element.style().corner_radii.bottom_right,
         Some(px(12.0).into())
     );
+}
+
+#[cfg(feature = "gpui")]
+#[test]
+fn native_adapter_applies_declared_uniform_scale() {
+    use gpui::{div, prelude::*};
+
+    let frame = gpui_ce_motion::Frame::at(Target::default().scale(0.75));
+    let mut element = frame.apply(div());
+
+    assert_eq!(element.style().scale.width, Some(0.75));
+    assert_eq!(element.style().scale.height, Some(0.75));
 }

@@ -217,6 +217,7 @@ pub struct StyleMotion {
     target: StyleTarget,
     initial: Option<StyleTarget>,
     transition: Transition,
+    delay: Duration,
     overrides: [Option<Transition>; COUNT],
     color_overrides: [Option<Transition>; 4],
 }
@@ -228,6 +229,7 @@ impl StyleMotion {
             target,
             initial: None,
             transition: Transition::default(),
+            delay: Duration::ZERO,
             overrides: [None; COUNT],
             color_overrides: [None; 4],
         }
@@ -243,6 +245,13 @@ impl StyleMotion {
     /// Sets default timing for all style tracks.
     pub fn transition(mut self, transition: Transition) -> Self {
         self.transition = transition;
+
+        self
+    }
+
+    /// Holds every introduced track at its initial presentation before moving.
+    pub fn delay(mut self, delay: Duration) -> Self {
+        self.delay = delay;
 
         self
     }
@@ -330,9 +339,10 @@ impl StyleMotionState {
 
                 let state = self.values[i].get_or_insert_with(|| MotionValue::new(initial));
 
-                state.animate(
+                state.animate_delayed(
                     target,
                     motion.overrides[i].unwrap_or(motion.transition),
+                    motion.delay,
                     now,
                 );
                 let frame = state.sample(now, reduced);
@@ -359,9 +369,10 @@ impl StyleMotionState {
                 completed |= !self.initialized && initial != target;
                 let state = self.colors[i].get_or_insert_with(|| ColorState::new(initial));
 
-                let (color, running) = state.sample(
+                let (color, running) = state.sample_delayed(
                     target,
                     motion.color_overrides[i].unwrap_or(motion.transition),
+                    motion.delay,
                     now,
                     reduced,
                 );
