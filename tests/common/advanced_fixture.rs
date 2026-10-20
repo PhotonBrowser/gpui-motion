@@ -343,7 +343,8 @@ impl Render for PressScaleFixture {
                 .track_focus(&self.focus)
                 .w(px(100.))
                 .h(px(40.))
-                .on_click(move |_, _, _| clicks.set(clicks.get() + 1)),
+                .on_click(move |_, _, _| clicks.set(clicks.get() + 1))
+                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation()),
         )
         .scale(0.92)
         .spring(Spring::new(480., 44., 1.).unwrap())

@@ -326,6 +326,7 @@ impl<E: IntoElement + StatefulInteractiveElement + Styled + 'static> Element
                     .disabled(!self.enabled);
                 let gesture = state
                     .bind(self.id.clone(), element, motion, targets)
+                    .capture_press()
                     .tab_index(self.tab_index)
                     .focus_tab_stop(self.focus_tab_stop);
                 let gesture = if let Some(focus) = self.focus_handle.clone() {

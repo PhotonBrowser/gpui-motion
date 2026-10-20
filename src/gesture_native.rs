@@ -276,6 +276,7 @@ impl GestureState {
             targets,
             enabled: true,
             drag_listener: true,
+            capture_press: false,
             focus_handle: None,
             tab_index: Some(0),
             preserve_focus_tab_stop: false,
@@ -293,6 +294,7 @@ pub struct GestureElement<E = Stateful<Div>> {
     targets: GestureTargets,
     enabled: bool,
     drag_listener: bool,
+    capture_press: bool,
     focus_handle: Option<FocusHandle>,
     tab_index: Option<isize>,
     preserve_focus_tab_stop: bool,
@@ -300,6 +302,12 @@ pub struct GestureElement<E = Stateful<Div>> {
 }
 
 impl<E> GestureElement<E> {
+    // Press-scale wrappers must observe input before a child stops bubbling.
+    pub(crate) fn capture_press(mut self) -> Self {
+        self.capture_press = true;
+        self
+    }
+
     /// Uses an existing focus handle instead of creating a separate tab stop.
     /// The child is tracked under this handle so its focus styles remain active.
     pub fn focus_handle(mut self, focus: FocusHandle) -> Self {
@@ -615,9 +623,14 @@ impl<E: IntoElement + StatefulInteractiveElement + Styled + 'static> Element for
         let region = hitbox.clone();
 
         let automatic_drag = self.drag_listener;
+        let press_phase = if self.capture_press {
+            DispatchPhase::Capture
+        } else {
+            DispatchPhase::Bubble
+        };
 
         w.on_mouse_event(move |event: &MouseDownEvent, phase, w, cx| {
-            if phase == DispatchPhase::Bubble
+            if phase == press_phase
                 && event.button == MouseButton::Left
                 && region.is_hovered(w)
                 && automatic_drag
