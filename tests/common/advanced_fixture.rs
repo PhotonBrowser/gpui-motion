@@ -1,7 +1,7 @@
 //! Shared native geometry/input contracts for the CE and Kit adapters.
 use ui::{
-    AppContext, Context, Modifiers, MouseButton, Render, Role, ScrollHandle, TestAppContext,
-    VisualTestContext, Window, div, point, prelude::*, px, size,
+    AppContext, Context, FocusHandle, Modifiers, MouseButton, Render, Role, ScrollHandle,
+    TestAppContext, VisualTestContext, Window, div, point, prelude::*, px, size,
 };
 
 use crate::{activation, motion, ui};
@@ -43,6 +43,7 @@ struct Fixture {
     scroll: ScrollHandle,
     shared: SharedLayout<u8>,
     reorder: ReorderGroup<u8>,
+    reorder_focus: Vec<FocusHandle>,
     vector: VectorState,
     clicks: Rc<Cell<usize>>,
     scroll_extent: f32,
@@ -208,21 +209,21 @@ impl Render for Fixture {
                 let mut column = div().flex().flex_col().items_start();
 
                 for key in self.reorder.order().iter().copied() {
+                    let focus = self.reorder_focus[usize::from(key - 1)].clone();
+                    let item = div()
+                        .id(("card", usize::from(key)))
+                        .role(Role::Button)
+                        .aria_label(format!("Item {key}"))
+                        .child(format!("Item {key}"))
+                        .debug_selector(move || format!("reorder-{key}"))
+                        .track_focus(&focus)
+                        .tab_index(0)
+                        .w(px(100.))
+                        .h(px(30.))
+                        .flex_shrink_0();
                     column = column.child(
                         self.reorder
-                            .item(
-                                ("reorder", usize::from(key)),
-                                key,
-                                div()
-                                    .id(("card", usize::from(key)))
-                                    .role(Role::Button)
-                                    .aria_label(format!("Item {key}"))
-                                    .child(format!("Item {key}"))
-                                    .debug_selector(move || format!("reorder-{key}"))
-                                    .w(px(100.))
-                                    .h(px(30.))
-                                    .flex_shrink_0(),
-                            )
+                            .item_with_focus(("reorder", usize::from(key)), key, focus, item)
                             .transition(linear()),
                     );
                 }
@@ -276,7 +277,7 @@ impl Render for Fixture {
 }
 
 fn setup(cx: &mut TestAppContext, mode: u8) -> ui::WindowHandle<Fixture> {
-    let window = cx.open_window(size(px(400.), px(300.)), |_, _| Fixture {
+    let window = cx.open_window(size(px(400.), px(300.)), |_, cx| Fixture {
         mode,
         height: 40.,
         width: 100.,
@@ -291,6 +292,13 @@ fn setup(cx: &mut TestAppContext, mode: u8) -> ui::WindowHandle<Fixture> {
         scroll: ScrollHandle::new(),
         shared: SharedLayout::default(),
         reorder: ReorderGroup::new(vec![1, 2, 3], Axis::Y).unwrap(),
+        reorder_focus: if mode == 5 {
+            (0..3)
+                .map(|index| cx.focus_handle().tab_stop(true).tab_index(index))
+                .collect()
+        } else {
+            Vec::new()
+        },
         vector: VectorState::new(shape(0.)),
         clicks: Rc::new(Cell::new(0)),
         scroll_extent: 400.,
