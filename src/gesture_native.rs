@@ -277,6 +277,7 @@ impl GestureState {
             enabled: true,
             drag_listener: true,
             capture_press: false,
+            preserve_position: false,
             focus_handle: None,
             tab_index: Some(0),
             preserve_focus_tab_stop: false,
@@ -295,6 +296,7 @@ pub struct GestureElement<E = Stateful<Div>> {
     enabled: bool,
     drag_listener: bool,
     capture_press: bool,
+    preserve_position: bool,
     focus_handle: Option<FocusHandle>,
     tab_index: Option<isize>,
     preserve_focus_tab_stop: bool,
@@ -305,6 +307,12 @@ impl<E> GestureElement<E> {
     // Press-scale wrappers must observe input before a child stops bubbling.
     pub(crate) fn capture_press(mut self) -> Self {
         self.capture_press = true;
+        self
+    }
+
+    // Press-scale wrappers transform style only; caller-owned offsets stay intact.
+    pub(crate) fn preserve_position(mut self) -> Self {
+        self.preserve_position = true;
         self
     }
 
@@ -455,10 +463,12 @@ impl<E: IntoElement + StatefulInteractiveElement + Styled + 'static> Element for
         } else {
             child
         };
-        let child = frame
-            .apply(child)
-            .left(px(target.x_px()))
-            .top(px(target.y_px()));
+        let child = frame.apply(child);
+        let child = if self.preserve_position {
+            child
+        } else {
+            child.left(px(target.x_px())).top(px(target.y_px()))
+        };
 
         let pending = data.pending_drag.is_some() || data.pending_pinch.is_some();
 

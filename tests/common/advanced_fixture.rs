@@ -341,8 +341,12 @@ impl Render for PressScaleFixture {
                 .aria_label("Press scale control")
                 .tab_index(3)
                 .track_focus(&self.focus)
+                .debug_selector(|| "press-scale-button".into())
                 .w(px(100.))
                 .h(px(40.))
+                .absolute()
+                .right(px(12.))
+                .top(px(10.))
                 .on_click(move |_, _, _| clicks.set(clicks.get() + 1))
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation()),
         )
@@ -354,7 +358,7 @@ impl Render for PressScaleFixture {
         .tab_index(None)
         .enabled(self.enabled);
 
-        div().size_full().items_start().child(control)
+        div().size_full().relative().items_start().child(control)
     }
 }
 
@@ -385,12 +389,12 @@ pub fn press_scale_wrapper_keeps_native_activation_and_focus(cx: &mut TestAppCon
         .update(cx, |view, _, _| view.gesture.clone())
         .unwrap();
     let mut visual = VisualTestContext::from_window(window.into(), cx);
+    let button_bounds = visual.debug_bounds("press-scale-button").unwrap();
+    assert_eq!(button_bounds.right(), px(388.));
+    assert_eq!(button_bounds.origin.y, px(10.));
+    let press_point = point(px(338.), px(30.));
 
-    visual.simulate_mouse_down(
-        point(px(10.), px(10.)),
-        MouseButton::Left,
-        Modifiers::default(),
-    );
+    visual.simulate_mouse_down(press_point, MouseButton::Left, Modifiers::default());
     cx.executor().advance_clock(Duration::from_millis(60));
     cx.update_window(window.into(), |_, w, cx| {
         w.simulate_next_frame(cx);
@@ -399,18 +403,10 @@ pub fn press_scale_wrapper_keeps_native_activation_and_focus(cx: &mut TestAppCon
     .unwrap();
     assert!(gesture.interaction().pressed);
     assert!(gesture.presented().scale_factor().unwrap() < 1.0);
-    visual.simulate_mouse_up(
-        point(px(10.), px(10.)),
-        MouseButton::Left,
-        Modifiers::default(),
-    );
+    visual.simulate_mouse_up(press_point, MouseButton::Left, Modifiers::default());
     assert_eq!(clicks.get(), 1);
 
-    visual.simulate_mouse_down(
-        point(px(10.), px(10.)),
-        MouseButton::Left,
-        Modifiers::default(),
-    );
+    visual.simulate_mouse_down(press_point, MouseButton::Left, Modifiers::default());
     visual.simulate_mouse_move(
         point(px(250.), px(250.)),
         MouseButton::Left,
